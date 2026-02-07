@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Zolyx</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: monospace;
+    color: #d7d700;
+  }
+  canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: 768px;
+    height: 576px;
+  }
+  #info {
+    color: #aaa;
+    font-size: 13px;
+    margin-top: 12px;
+    text-align: center;
+    line-height: 1.6;
+  }
+  #info b { color: #fff; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="info">
+  <b>Arrows</b> = Move &nbsp; <b>Space</b> = Fire (start drawing / slow mode while drawing)<br>
+  Claim <b>75%</b> of the field to complete a level. Avoid chasers, sparks, and the trail cursor!
+</div>
+<script type="module" src="./main.ts"></script>
+</body>
+</html>

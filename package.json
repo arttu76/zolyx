@@ -1,0 +1,17 @@
+{
+  "name": "zolyx",
+  "version": "1.0.0",
+  "description": "TypeScript port of Zolyx (ZX Spectrum, Pete Cooke, Firebird 1987) — AI-generated reverse engineering from raw binary",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vite": "^7.3.1",
+    "vite-plugin-singlefile": "^2.3.0"
+  }
+}
