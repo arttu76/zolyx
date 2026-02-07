@@ -51,7 +51,7 @@ zolyx/
   resources/
     zolyx.sna                     Original ZX Spectrum 48K snapshot (49179 bytes)
   src/
-    index.html                    HTML template (CSS + canvas + <!--BUNDLE--> placeholder)
+    index.html                    HTML entry point (CSS + canvas + module script)
     main.ts                       Entry point: canvas setup, loading screen, game loop
     types.ts                      TypeScript interfaces and type aliases
     constants.ts                  All game constants, direction tables, level config
@@ -79,11 +79,16 @@ zolyx/
       sprites.ts                  Masked sprite drawing, spark cell rendering
       scene.ts                    Full scene composition: grid, entities, HUD, screens
       blit.ts                     Final blit from internal buffers to canvas
-  scripts/
-    build.mjs                     esbuild bundle + HTML inlining (production)
-    watch.mjs                     File watcher with auto-rebuild (development)
+  disassembly/                    Complete Z80 disassembly of original binary
+    index.asm                     Memory map and file index
+    main_loop.asm                 Main game loop & level complete
+    player_movement.asm           Player movement & drawing
+    chaser.asm                    Chaser wall-following
+    spark.asm                     Spark diagonal movement
+    ...                           (19 files total)
   dist/                           Build output (committed, served by GitHub Pages)
-    index.html                    Single self-contained file with inlined minified JS
+    index.html                    Single self-contained file with inlined JS
+  vite.config.js                  Vite build configuration
   package.json
   tsconfig.json
   .gitignore
@@ -94,12 +99,10 @@ zolyx/
 | Command | Description |
 |---------|-------------|
 | `npm run build` | Production build: minified, single `dist/index.html` |
-| `npm run dev` | Development build: unminified, inline sourcemaps |
-| `npm run watch` | File watcher with auto-rebuild on changes |
+| `npm run dev` | Dev server with hot module replacement |
 | `npm run typecheck` | TypeScript type checking (`tsc --noEmit`) |
-| `npm run clean` | Remove `dist/` directory |
 
-The build pipeline uses **esbuild** to bundle all TypeScript into a single IIFE, then a custom Node script inlines the bundle into the HTML template, producing a single self-contained `dist/index.html`.
+The build uses **Vite** with `vite-plugin-singlefile` to bundle all TypeScript and inline it into the HTML, producing a single self-contained `dist/index.html`.
 
 ## TypeScript Architecture
 
@@ -208,9 +211,34 @@ type Grid = number[][];  // grid[y][x], 128x128
 
 ---
 
-# Reverse Engineering Documentation
+# Reverse Engineering Documentation (generated from binary)
 
-Everything below was derived from analysis of the `zolyx.sna` binary dump. All addresses, tables, and algorithms were extracted by disassembling the Z80 machine code.
+Everything below was derived entirely from analysis of the raw `zolyx.sna` binary dump — no source code, symbols, or documentation from the original developer were available. All addresses, data structures, tables, and algorithms were extracted by AI-driven disassembly and analysis of the Z80 machine code.
+
+## Z80 Disassembly
+
+The `disassembly/` directory contains a complete annotated disassembly of the original binary, produced by `dz80` with trace analysis and post-processed with labels and comments derived from the reverse engineering work documented below. Files are organized by functional area:
+
+| File | Address Range | Content |
+|------|---------------|---------|
+| `screen_memory.asm` | $4000-$AFFF | Screen bitmap, attributes, shadow grid |
+| `game_variables.asm` | $B000-$B0FF | All game state variables and data tables |
+| `menu_system.asm` | $B100-$BA67 | Menu system and startup code |
+| `utilities.asm` | $BA68-$C03D | Input, attribute routines, rectangle drawing |
+| `main_loop.asm` | $C371-$C616 | Main game loop, level complete handler |
+| `death_scoring.asm` | $C617-$C7B4 | Death, game over, percentage calculation |
+| `player_movement.asm` | $C7B5-$CA42 | Player movement and drawing mode |
+| `movement_collision.asm` | $CA43-$CB02 | Movement helpers, collision detection |
+| `chaser.asm` | $CB03-$CBFD | Chaser wall-following algorithm |
+| `trail_cursor_init.asm` | $CBFE-$CE61 | Trail cursor, game/level initialization |
+| `cell_io.asm` | $CE62-$CF00 | Cell read/write, coordinate conversion |
+| `flood_fill.asm` | $CF01-$D077 | Scanline flood fill algorithm |
+| `sprites.asm` | $D078-$D189 | Sprite draw/save/restore routines |
+| `spark.asm` | $D18A-$D279 | Spark diagonal movement and bouncing |
+| `display.asm` | $D27A-$D3C3 | HUD rendering, score, timer bar, text |
+| `effects.asm` | $D3C4-$D500 | Flash effects, PRNG, rainbow cycling |
+| `remaining_code.asm` | $D501-$EFFF | Additional routines |
+| `sprite_data.asm` | $F000-$FFFF | Sprite data, fonts, lookup tables |
 
 ## SNA File Format
 

@@ -74,20 +74,78 @@ export function handleDeath(): void {
 }
 
 /**
- * Handle level completion. From $C55D–$C5B6:
- *   1. Display "Screen Completed" message
- *   2. Award remaining timer as bonus score: each timer tick = 1 point
- *      (the timer counts down to 0, adding to score along the way)
- *   3. Increment level counter: $C5B4: INC ($B0C1)
- *   4. Jump to level init: $C5B5: JP $C374
+ * Start the level completion sequence. From $C55D–$C5B6:
+ *   1. Dim field (clear BRIGHT on all field attributes)
+ *   2. Draw "Screen Completed" popup with rainbow cycling (32 frames)
+ *   3. Finalize percentage into score: score += (raw% + fill%) * 4
+ *   4. Timer-to-score countdown: each tick = +1 point, 2 frames per tick
+ *   5. Post-countdown pause (50 frames = 1 second)
+ *   6. Restore, increment level, jump to level init
  */
 export function handleLevelComplete(): void {
-  // Bonus score: remaining timer * 1 point (simplified from original's
-  // frame-by-frame decrement animation at $C589–$C5A7)
-  state.score += state.timer * 4;
+  // Finalize percentage bonus immediately (step 5 in Z80: $C57A CALL $C6F6)
+  state.score += (state.rawPercentage + state.percentage) * 4;
+  state.rawPercentage = 0;
+  state.percentage = 0;
 
-  state.level++;
-  initLevel();
+  // Start the animated sequence
+  state.lcAnim.active = true;
+  state.lcAnim.phase = 0;  // rainbow cycling
+  state.lcAnim.frame = 0;
+  state.lcAnim.timerCountdown = state.timer;
+  state.lcAnim.subFrame = 0;
+}
+
+/**
+ * Advance the level complete animation by one frame.
+ * Called from gameFrame() while lcAnim.active is true.
+ *
+ * Phase 0: Rainbow cycling (32 frames)
+ * Phase 1: Timer-to-score countdown (2 frames per tick)
+ * Phase 2: Post-countdown pause (50 frames)
+ * Phase 3: Done — advance to next level
+ */
+export function tickLevelComplete(): void {
+  const lc = state.lcAnim;
+  lc.frame++;
+
+  switch (lc.phase) {
+    case 0: // Rainbow cycling: 16 color steps x 2 frames = 32 frames
+      if (lc.frame >= 32) {
+        lc.phase = 1;
+        lc.frame = 0;
+        lc.subFrame = 0;
+      }
+      break;
+
+    case 1: // Timer-to-score countdown
+      if (lc.timerCountdown <= 0) {
+        lc.phase = 2;
+        lc.frame = 0;
+        break;
+      }
+      lc.subFrame++;
+      if (lc.subFrame >= 2) { // 2 frames per tick (40ms at 50fps)
+        lc.subFrame = 0;
+        lc.timerCountdown--;
+        state.timer--;
+        state.score++; // +1 point per timer tick
+      }
+      break;
+
+    case 2: // Post-countdown pause: 50 frames = 1 second
+      if (lc.frame >= 50) {
+        lc.phase = 3;
+      }
+      break;
+
+    case 3: // Done — advance to next level
+      lc.active = false;
+      state.levelComplete = false;
+      state.level++;
+      initLevel();
+      break;
+  }
 }
 
 /**
@@ -124,6 +182,12 @@ export function handleLevelComplete(): void {
 export function gameFrame(): void {
   if (state.startScreen || state.paused) return;
   if (state.gameOver) { state.gameOverFrame++; return; }
+
+  // Level complete animation runs its own frame logic
+  if (state.lcAnim.active) {
+    tickLevelComplete();
+    return;
+  }
 
   if (state.deathAnimTimer > 0) {
     state.deathAnimTimer--;

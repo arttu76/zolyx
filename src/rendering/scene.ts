@@ -287,7 +287,46 @@ export function render(): void {
     }
   }
 
-  if (state.paused && !state.gameOver) {
+  // --- Level Complete overlay ---
+  if (state.lcAnim.active) {
+    // Step 1: Dim field ($D3D3: clear BRIGHT from rows 4-23)
+    for (let row = 4; row < ATTR_ROWS; row++) {
+      for (let col = 0; col < ATTR_COLS; col++) {
+        screenAttrs[row * ATTR_COLS + col] &= ~0x40;
+      }
+    }
+
+    // Step 2: Draw bordered popup rectangle (rows 11-15, cols 7-24)
+    // Original uses cols 8-23 but text "SCREEN COMPLETED" is 16 chars = full width.
+    // Widen by 2 cols for padding, matching the visual style of other popups.
+    const lcRow = 11, lcCol = 7, lcW = 18, lcH = 5;
+    const lcPx = lcCol * 8, lcPy = lcRow * 8;
+    const lcPw = lcW * 8, lcPh = lcH * 8;
+    fillRect(lcPx, lcPy, lcPw, lcPh, 0);
+    fillRect(lcPx, lcPy, lcPw, 1, 1);
+    fillRect(lcPx, lcPy + lcPh - 1, lcPw, 1, 1);
+    fillRect(lcPx, lcPy, 1, lcPh, 1);
+    fillRect(lcPx + lcPw - 1, lcPy, 1, lcPh, 1);
+
+    // Step 3: Rainbow color cycling ($D415)
+    const RAINBOW = [0x70, 0x78, 0x40, 0x48, 0x50, 0x58, 0x60, 0x68];
+    const lc = state.lcAnim;
+    let lcAttr: number;
+    if (lc.phase === 0 && lc.frame < 32) {
+      lcAttr = RAINBOW[Math.floor(lc.frame / 2) & 7];
+    } else {
+      lcAttr = 0x68; // bright cyan
+    }
+    for (let r = lcRow; r < lcRow + lcH; r++) {
+      setAttrRun(r, lcCol, lcW, lcAttr);
+    }
+
+    // Step 4: Print "Screen Completed" centered at row 13
+    const lcText = "SCREEN COMPLETED";
+    printAt(13, Math.floor(lcCol + (lcW - lcText.length) / 2), lcText);
+  }
+
+  if (state.paused && !state.gameOver && !state.lcAnim.active) {
     for (let r = 11; r < 13; r++) { setAttrRow(r, overlayAttr); }
     fillRect(0, 88, SCREEN_W, 16, 0);
     printCentered(11, "PAUSED");

@@ -81,6 +81,15 @@ export const state = {
   gameOverOutOfTime: false,        // true = "Out of Time" variant, false = normal game over
   gameOverFrame: 0,                // Animation frame counter for rainbow cycling
   levelComplete: false,
+
+  // Level complete animation state (matches Z80 $C55D-$C5B5 sequence)
+  lcAnim: {
+    active: false,                 // true while level complete sequence is playing
+    phase: 0 as number,           // 0=rainbow, 1=timer countdown, 2=pause, 3=done
+    frame: 0,                     // frame counter within current phase
+    timerCountdown: 0,            // remaining timer ticks to count down
+    subFrame: 0,                  // sub-frame counter (2 frames per tick in countdown)
+  },
   collision: false,
   timerExpired: false,
   paused: false,
