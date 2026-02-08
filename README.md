@@ -229,6 +229,7 @@ The `disassembly/` directory contains a complete annotated disassembly of the or
 | `game_variables.asm` | $B000-$B0FF | All game state variables and data tables |
 | `menu_system.asm` | $B100-$BA67 | Menu system and startup code |
 | `utilities.asm` | $BA68-$C03D | Input, attribute routines, rectangle drawing |
+| *(not disassembled)* | $C03E-$C370 | Menu support routines (RESTORE_RECT, etc.) |
 | `main_loop.asm` | $C371-$C616 | Main game loop, level complete handler |
 | `death_scoring.asm` | $C617-$C7B4 | Death, game over, percentage calculation |
 | `player_movement.asm` | $C7B5-$CA42 | Player movement and drawing mode |

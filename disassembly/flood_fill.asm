@@ -57,8 +57,8 @@
 ;                Position 0 ($C0) = bits 7-6 (leftmost cell in byte)
 ;                Position 3 ($03) = bits 1-0 (rightmost cell in byte)
 ;
-;   $FC40+       Row address lookup table (160 entries, 2 bytes each)
-;                Maps (pixelY * 4) to a ZX Spectrum screen address.
+;   $FC00-$FD7F  Row address lookup table (192 entries, 2 bytes each)
+;                Maps pixel row to a ZX Spectrum screen address.
 ;                Used by COORDS_TO_ADDR to convert game Y -> screen addr.
 ;
 ; --------------------------------------------------------------------------
@@ -134,7 +134,7 @@
 ;   byteCol = gameX / 4  (each byte holds 4 game cells, 2 bits each)
 ;   screenAddr = LOOKUP_TABLE[pixelY * 2] + byteCol
 ;
-; The lookup table at $FC40 pre-computes the ZX Spectrum screen address
+; The lookup table at $FC00 pre-computes the ZX Spectrum screen address
 ; for each pixel row, eliminating the need for complex bit manipulation.
 ;
 ; Within each screen byte, the 4 game cells are packed MSB-first:
@@ -418,7 +418,7 @@ FLOOD_FILL:
 	; CF48: ADD A,A            ; A = (Y+1_clamped) * 4   (table index: 4 bytes per row entry)
 	; CF49: LD  L,A            ; L = table index (low byte)
 	; CF4A: ADC A,$FC          ; A = tableIndex + $FC + carry. This computes the high byte
-	;                          ; of the lookup table address. The table is at $FC00-$FD2F.
+	;                          ; of the lookup table address. The table is at $FC00-$FD7F.
 	;                          ; If tableIndex overflows 8 bits, carry propagates into high.
 	;                          ; The math: tableAddr = $FC00 + tableIndex. High byte = $FC
 	;                          ; plus any carry from the low byte addition.
@@ -801,7 +801,7 @@ FLOOD_FILL:
 	; CFE3: ADD A,A            ; A = clamped(Y+1) * 2 (first multiply for table index)
 
 	ADD	A,A		; cfe4  87		.
-	; CFE4: ADD A,A            ; A = clamped(Y+1) * 4 (table index into $FC40 lookup table)
+	; CFE4: ADD A,A            ; A = clamped(Y+1) * 4 (table index into $FC00 lookup table)
 
 	LD	L,A		; cfe5  6f		o
 	; CFE5: LD  L,A            ; L = table index (low byte of pointer into lookup table)
