@@ -27,8 +27,6 @@ export const state = {
     drawing: false,        // $B0E1 bit 7: true=currently drawing a trail
     fastMode: false,       // $B0E1 bit 4: true=fire held during drawing (half speed)
     fillComplete: false,   // $B0E1 bit 6: trail reached border, trigger fill
-    drawStartX: 0,         // $B0E4: X where drawing started (for fill direction)
-    drawStartY: 0,         // $B0E5: Y where drawing started
   } as Player,
 
   /**

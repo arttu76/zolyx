@@ -43,8 +43,6 @@ export interface Player {
   drawing: boolean;         // $B0E1 bit 7: true=currently drawing a trail
   fastMode: boolean;        // $B0E1 bit 4: true=fire held during drawing (half speed)
   fillComplete: boolean;    // $B0E1 bit 6: trail reached border, trigger fill
-  drawStartX: number;       // $B0E4: X where drawing started (for fill direction)
-  drawStartY: number;       // $B0E5: Y where drawing started
 }
 
 /**

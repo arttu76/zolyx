@@ -95,8 +95,6 @@ export function initLevel(): void {
   state.player.drawing = false;
   state.player.fastMode = false;
   state.player.fillComplete = false;
-  state.player.drawStartX = 0;
-  state.player.drawStartY = 0;
 
   // Clear trail buffer and cursor
   state.trailBuffer = [];

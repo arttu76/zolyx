@@ -243,7 +243,7 @@ export function gameFrame(): void {
   //   If zero: reload from ($B0EA), then DEC ($B0C0) -- decrement timer
   //   If timer reaches 0: SET 1,($B0C8) -- timer expired flag
   state.timerSub--;
-  if (state.timerSub <= 0) {
+  if (state.timerSub === 0) {
     state.timerSub = TIMER_SPEED;
     state.timer--;
     if (state.timer <= 0) {

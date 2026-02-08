@@ -124,9 +124,6 @@ export function attemptMove(target: MoveTarget | null, _isFirst: boolean): Attem
     // If target cell is empty (0) AND fire is pressed -> start drawing
     // From $C7DD: BIT 0,C (test fire bit)
     if (cellVal === CELL_EMPTY && state.keys.fire) {
-      // Save drawing start position. From $C7E1: LD HL,($B003) / LD ($B0E4),HL.
-      state.player.drawStartX = state.player.x;
-      state.player.drawStartY = state.player.y;
       // Set drawing flag. From $C7E7: SET 7,(IX+0).
       state.player.drawing = true;
       // Set fast mode (fire is held). From $C7EF: SET 4,(IX+0).

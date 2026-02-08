@@ -1,12 +1,11 @@
 /**
  * Text rendering -- draw characters and strings into the ZX Spectrum screen bitmap.
  *
- * Three font systems:
+ * Two font systems:
  *   1. ZX_FONT ($F700): Custom game font, 96 characters (ASCII 32-127), 8 bytes each.
  *      Used for general text (menus, overlays, game messages).
  *   2. HUD_FONT ($FA00): Custom HUD font, 32 characters, rendered double-height (8x16).
  *      Used for score/level/timer display. Rendered by $D386 in the original.
- *   3. Double-size: ZX_FONT at 2x scale (16x16 per glyph), used for title text.
  *
  * Original Z80 routines:
  *   $D386  HUD double-height character renderer
@@ -15,7 +14,7 @@
 
 import { ZX_FONT, HUD_FONT, HUD_CHAR_MAP } from '../data/fonts';
 import { setPixel } from './primitives';
-import { SCREEN_W, ATTR_COLS } from '../constants';
+import { ATTR_COLS } from '../constants';
 
 /**
  * Draw a character glyph at pixel position (px, py) into the bitmap.
@@ -75,35 +74,4 @@ export function printCentered(row: number, str: string): number {
   const col = Math.floor((ATTR_COLS - str.length) / 2);
   printAt(row, col, str);
   return col;
-}
-
-/**
- * Draw a character at double size (2x2 pixels per font pixel) for titles.
- * Draws at pixel position (px, py), occupying 16x16 pixels.
- */
-export function drawCharDouble(ch: string, px: number, py: number): void {
-  const code = ch.charCodeAt(0);
-  if (code < 32 || code > 127) return;
-  const off = (code - 32) * 8;
-  for (let r = 0; r < 8; r++) {
-    const byte = ZX_FONT[off + r];
-    for (let b = 0; b < 8; b++) {
-      if (byte & (0x80 >> b)) {
-        setPixel(px + b * 2, py + r * 2, 1);
-        setPixel(px + b * 2 + 1, py + r * 2, 1);
-        setPixel(px + b * 2, py + r * 2 + 1, 1);
-        setPixel(px + b * 2 + 1, py + r * 2 + 1, 1);
-      }
-    }
-  }
-}
-
-/** Print a string at double size, centered on a given pixel Y. */
-export function printDouble(py: number, str: string): number {
-  const s = str.toUpperCase();
-  const totalW = s.length * 16;
-  const startX = Math.floor((SCREEN_W - totalW) / 2);
-  for (let i = 0; i < s.length; i++)
-    drawCharDouble(s[i], startX + i * 16, py);
-  return startX;
 }
