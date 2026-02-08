@@ -18,8 +18,6 @@
   canvas {
     image-rendering: pixelated;
     image-rendering: crisp-edges;
-    width: 768px;
-    height: 576px;
   }
   #info {
     color: #aaa;
@@ -37,6 +35,28 @@
   <b>Arrows</b> = Move &nbsp; <b>Space</b> = Fire (start drawing / slow mode while drawing)<br>
   Claim <b>75%</b> of the field to complete a level. Avoid chasers, sparks, and the trail cursor!
 </div>
+<script>
+  var NATIVE_W = 256;
+  var NATIVE_H = 192;
+  var PADDING = 40;
+  var INFO_GAP = 12;
+  var INFO_FALLBACK_H = 60;
+  var MIN_SCALE = 1;
+
+  function scaleCanvas() {
+    var c = document.getElementById("game");
+    var info = document.getElementById("info");
+    var infoH = info ? info.offsetHeight + INFO_GAP : INFO_FALLBACK_H;
+    var s = Math.max(MIN_SCALE, Math.min(
+      Math.floor((window.innerWidth - PADDING) / NATIVE_W),
+      Math.floor((window.innerHeight - infoH - PADDING) / NATIVE_H)
+    ));
+    c.style.width = (NATIVE_W * s) + "px";
+    c.style.height = (NATIVE_H * s) + "px";
+  }
+  scaleCanvas();
+  window.addEventListener("resize", scaleCanvas);
+</script>
 <script type="module" src="./main.ts"></script>
 </body>
 </html>
