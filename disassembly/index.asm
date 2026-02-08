@@ -24,7 +24,7 @@
 ;   spark.asm                           Spark Diagonal Movement
 ;   display.asm                         Score Display, Timer Bar & Text Rendering
 ;   effects.asm                         Visual Effects & PRNG
-;   remaining_code.asm                  Remaining Code & Misc Routines
+;   remaining_code.asm                  Cellular Automaton (Freebie Feature)
 ;   sprite_data.asm                     Sprite & Font Data
 ;
 ; Memory Map:

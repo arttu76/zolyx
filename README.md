@@ -225,7 +225,7 @@ The `disassembly/` directory contains a complete annotated disassembly of the or
 
 | File | Address Range | Content |
 |------|---------------|---------|
-| `screen_memory.asm` | $4000-$AFFF | Screen bitmap, attributes, shadow grid |
+| `screen_memory.asm` | $4000-$AFFF | Screen bitmap, attributes, shadow grid, system area |
 | `game_variables.asm` | $B000-$B0FF | All game state variables and data tables |
 | `menu_system.asm` | $B100-$BA67 | Menu system and startup code |
 | `utilities.asm` | $BA68-$C03D | Input, attribute routines, rectangle drawing |
@@ -241,7 +241,7 @@ The `disassembly/` directory contains a complete annotated disassembly of the or
 | `spark.asm` | $D18A-$D279 | Spark diagonal movement and bouncing |
 | `display.asm` | $D27A-$D3C3 | HUD rendering, score, timer bar, text |
 | `effects.asm` | $D3C4-$D500 | Flash effects, PRNG, rainbow cycling |
-| `remaining_code.asm` | $D501-$EFFF | Additional routines |
+| `remaining_code.asm` | $D501-$EFFF | Cellular automaton ("Freebie" feature) |
 | `sprite_data.asm` | $F000-$FFFF | Sprite data, fonts, lookup tables |
 
 ## SNA File Format
@@ -281,7 +281,7 @@ The return address on the stack at SP=$AFFE is **$B134**, the menu system animat
 
 ### Interrupt Mode
 
-IM 2 is used with I=$3F, meaning the interrupt vector table is at $3F00. On the 48K Spectrum, the data bus floats to $FF during interrupt acknowledge, so the interrupt handler address is read from ($3FFF) which typically points to a simple HALT-return routine.
+IM 2 is used. The SNA snapshot has I=$3F (ROM default), but the game's startup code at $B11C sets I=$FE, placing the interrupt vector table at $FE00. Every byte of this 256-byte table is $FD, so regardless of the data bus value during interrupt acknowledge, the CPU always vectors to address $FDFD. There, a `JP $BB51` instruction redirects to the actual ISR, which saves/restores registers, clears the HALT waiting flag, and increments a frame counter.
 
 ## Memory Map
 
@@ -294,7 +294,7 @@ All game variables are concentrated in the $B000--$B0FF region.
 | $B003   | 1    | Player X position (E in `LD DE,($B003)`) |
 | $B004   | 1    | Player Y position (D register) |
 
-Initial value: X=2, Y=$12(18) -- top-left corner of border.
+Initial value: X=2, Y=$12 (18 decimal) -- top-left corner of border.
 Set at $CCA0: `LD HL,$1202` / `LD ($B003),HL` (L=X=$02, H=Y=$12).
 
 ### Chaser Data
@@ -1169,7 +1169,7 @@ Each has 8 alignment variants x 32 bytes (8 rows x 4 bytes: mask1, data1, mask2,
 
 ## Rendering Details
 
-The TypeScript version redraws the entire screen each frame from game state. The game auto-starts immediately on page load (no title screen). The rendering pipeline in `rendering/scene.ts` selects one of three modes:
+The TypeScript version redraws the entire screen each frame from game state. The game auto-starts immediately on page load (no title screen). The rendering pipeline in `rendering/scene.ts` handles several rendering states:
 
 ### Gameplay
 
