@@ -40,11 +40,13 @@ npm run build
 # Open dist/index.html in a browser
 ```
 
-**Controls:**
+**Controls (keyboard):**
 - **Arrow keys** = Move
 - **Space** = Fire (start drawing / slow mode while drawing)
 - **P** = Pause
 - **Enter** = Start game
+
+**Controls (mobile):** Touch controls appear automatically on touch devices — D-pad, Fire, Pause, and Restart buttons.
 
 ## Project Structure
 
@@ -62,6 +64,7 @@ zolyx/
     screen.ts                     Screen bitmap/attribute buffers, canvas management
     grid.ts                       Grid cell read/write operations
     input.ts                      Keyboard event listeners, input bit encoding
+    touch.ts                      Mobile touch controls, multi-touch tracking
     scoring.ts                    Cell counting, percentage calculation, score display
     init.ts                       Game/level initialization, entity spawning, PRNG
     player.ts                     Player movement, drawing mode, trail recording

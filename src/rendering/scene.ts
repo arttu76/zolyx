@@ -291,7 +291,8 @@ export function render(): void {
     for (let r = 11; r < 13; r++) { setAttrRow(r, overlayAttr); }
     fillRect(0, 88, SCREEN_W, 16, 0);
     printCentered(11, "PAUSED");
-    printCentered(12, "P TO RESUME");
+    const touchActive = document.body.classList.contains('has-touch');
+    printCentered(12, touchActive ? "TAP PAUSE" : "P TO RESUME");
   }
 
   blitToCanvas();

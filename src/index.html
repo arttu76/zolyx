@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Zolyx</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { touch-action: none; overscroll-behavior: none; }
   body {
     background: #000;
     display: flex;
@@ -27,6 +29,95 @@
     line-height: 1.6;
   }
   #info b { color: #fff; }
+
+  /* Touch controls */
+  #touch-controls {
+    display: none;
+    margin-top: 12px;
+    width: 100%;
+    max-width: 320px;
+    padding: 0 8px;
+    justify-content: space-between;
+    align-items: center;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  @media (pointer: coarse) {
+    body.has-touch #touch-controls { display: flex; }
+    body.has-touch #info { display: none; }
+  }
+  #dpad {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .dpad-mid {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .dpad-center {
+    width: 52px;
+    height: 52px;
+  }
+  .dpad-btn {
+    width: 52px;
+    height: 52px;
+    border: none;
+    border-radius: 6px;
+    background: #333;
+    color: #ccc;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+  }
+  .dpad-btn:active, .dpad-btn.active { background: #555; }
+  #action-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  #btn-fire {
+    width: 80px;
+    height: 80px;
+    border: none;
+    border-radius: 50%;
+    background: #a00;
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    font-family: monospace;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+  }
+  #btn-fire:active, #btn-fire.active { background: #d33; }
+  #aux-buttons {
+    display: flex;
+    gap: 12px;
+  }
+  #aux-buttons button {
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 6px;
+    background: #333;
+    color: #ccc;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+  }
+  #aux-buttons button:active, #aux-buttons button.active { background: #555; }
 </style>
 </head>
 <body>
@@ -34,6 +125,24 @@
 <div id="info">
   <b>Arrows</b> = Move &nbsp; <b>Space</b> = Fire (start drawing / slow mode while drawing)<br>
   Claim <b>75%</b> of the field to complete a level. Avoid chasers, sparks, and the trail cursor!
+</div>
+<div id="touch-controls">
+  <div id="dpad">
+    <button class="dpad-btn" data-dir="up">&#9650;</button>
+    <div class="dpad-mid">
+      <button class="dpad-btn" data-dir="left">&#9664;</button>
+      <div class="dpad-center"></div>
+      <button class="dpad-btn" data-dir="right">&#9654;</button>
+    </div>
+    <button class="dpad-btn" data-dir="down">&#9660;</button>
+  </div>
+  <div id="action-buttons">
+    <button id="btn-fire">FIRE</button>
+    <div id="aux-buttons">
+      <button id="btn-pause">&#10074;&#10074;</button>
+      <button id="btn-restart">&#8634;</button>
+    </div>
+  </div>
 </div>
 <script>
   var NATIVE_W = 256;
@@ -45,11 +154,15 @@
 
   function scaleCanvas() {
     var c = document.getElementById("game");
+    var touchCtrl = document.getElementById("touch-controls");
     var info = document.getElementById("info");
-    var infoH = info ? info.offsetHeight + INFO_GAP : INFO_FALLBACK_H;
+    var isTouchVisible = touchCtrl && getComputedStyle(touchCtrl).display !== "none";
+    var belowH = isTouchVisible
+      ? touchCtrl.offsetHeight + INFO_GAP
+      : (info ? info.offsetHeight + INFO_GAP : INFO_FALLBACK_H);
     var s = Math.max(MIN_SCALE, Math.min(
       Math.floor((window.innerWidth - PADDING) / NATIVE_W),
-      Math.floor((window.innerHeight - infoH - PADDING) / NATIVE_H)
+      Math.floor((window.innerHeight - belowH - PADDING) / NATIVE_H)
     ));
     c.style.width = (NATIVE_W * s) + "px";
     c.style.height = (NATIVE_H * s) + "px";

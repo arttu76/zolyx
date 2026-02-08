@@ -8,6 +8,7 @@
 
 import { initScreen } from './screen';
 import { setupInput } from './input';
+import { setupTouch } from './touch';
 import { gameFrame } from './game-loop';
 import { render } from './rendering/scene';
 import { initGame } from './init';
@@ -37,8 +38,9 @@ function mainLoop(timestamp: number): void {
 // 1. Initialize the ZX Spectrum screen buffers and canvas
 initScreen();
 
-// 2. Set up keyboard input handlers
+// 2. Set up keyboard and touch input handlers
 setupInput();
+setupTouch();
 
 // 3. Start the game immediately (no title screen)
 initGame();
