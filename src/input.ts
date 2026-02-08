@@ -39,7 +39,7 @@ export function getInputBits(): number {
  * Updates `state.keys` for arrow keys and space (fire).
  *
  * The keydown handler also handles:
- *   - Enter: start game (from start screen) or restart (after game over)
+ *   - Enter: restart game (after game over)
  *   - P: toggle pause
  */
 export function setupInput(): void {
@@ -52,8 +52,7 @@ export function setupInput(): void {
       case " ":          state.keys.fire = true; e.preventDefault(); break;
       case "p": case "P": state.paused = !state.paused; break;
       case "Enter":
-        if (state.startScreen) { state.startScreen = false; initGame(); }
-        else if (state.gameOver) { initGame(); state.startScreen = false; }
+        if (state.gameOver) { initGame(); }
         break;
     }
   });

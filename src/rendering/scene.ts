@@ -3,7 +3,7 @@
  *
  * This is the largest rendering module. It orchestrates all visual output:
  *   1. Clear screen buffers
- *   2. Render the appropriate scene (start screen, gameplay, game over, pause)
+ *   2. Render the appropriate scene (gameplay, game over, pause)
  *   3. Blit to canvas
  *
  * Original Z80 rendering is scattered across many routines:
@@ -20,13 +20,13 @@
 
 import { state } from '../state';
 import {
-  SCREEN_W, SCREEN_H, ATTR_COLS, ATTR_ROWS,
+  SCREEN_W, ATTR_COLS, ATTR_ROWS,
   FIELD_MIN_X, FIELD_MAX_X, FIELD_MIN_Y, FIELD_MAX_Y,
   CELL_EMPTY, CELL_PATTERNS,
   LEVEL_COLORS_ATTR,
 } from '../constants';
 import { screenBitmap, screenAttrs } from '../screen';
-import { fillRect, blitSCR, setPixel } from './primitives';
+import { fillRect, setPixel } from './primitives';
 import { setAttr, makeAttr, setAttrRun, setAttrRow } from './attributes';
 import { printAt, printHudAt, printCentered } from './text';
 import { drawMaskedSprite, drawSpark } from './sprites';
@@ -156,39 +156,6 @@ function renderHUD(): void {
   }
 }
 
-/** Render the start/title screen with loading screen background. */
-function renderStartScreen(): void {
-  if (state.loadingScrData) {
-    // Blit the original loading screen as background
-    blitSCR(state.loadingScrData);
-  } else {
-    for (let r = 0; r < ATTR_ROWS; r++) setAttrRow(r, makeAttr(true, 0, 0));
-  }
-
-  // Overlay text on rows 17-22 with black background
-  const overlayStart = 17;
-  const overlayEnd = 23;
-  for (let r = overlayStart; r < overlayEnd; r++) {
-    setAttrRow(r, makeAttr(true, 0, 0));
-    fillRect(0, r * 8, SCREEN_W, 8, 0);
-  }
-
-  // "PRESS ENTER TO START"
-  const startStr = "PRESS ENTER TO START";
-  const startAttr = makeAttr(true, 0, 7); // bright white
-  const c3 = printCentered(18, startStr);
-  setAttrRun(18, c3, startStr.length, startAttr);
-
-  // Controls
-  const ctrl1 = "ARROWS=MOVE  SPACE=FIRE";
-  const ctrl2 = "P=PAUSE";
-  const ctrlAttr = makeAttr(false, 0, 5); // non-bright cyan
-  const c4 = printCentered(20, ctrl1);
-  setAttrRun(20, c4, ctrl1.length, ctrlAttr);
-  const c5 = printCentered(22, ctrl2);
-  setAttrRun(22, c5, ctrl2.length, ctrlAttr);
-}
-
 /**
  * Main render function. Builds the Spectrum screen bitmap and attributes
  * each frame, then blits to the canvas.
@@ -197,12 +164,6 @@ export function render(): void {
   // Clear bitmap and reset attributes to black
   screenBitmap.fill(0);
   screenAttrs.fill(0); // paper=0(black), ink=0(black), no bright
-
-  if (state.startScreen) {
-    renderStartScreen();
-    blitToCanvas();
-    return;
-  }
 
   // --- Set field attributes ---
   // Use the ORIGINAL attribute byte from the level color table directly.

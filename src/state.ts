@@ -94,7 +94,6 @@ export const state = {
   timerExpired: false,
   paused: false,
   deathAnimTimer: 0,               // Countdown for death/level-complete animation
-  startScreen: true,               // Show title before first game
 
   // --- Input state ---
   keys: {
@@ -104,7 +103,4 @@ export const state = {
     right: false,
     fire: false,
   } as InputKeys,
-
-  // --- Loading screen ---
-  loadingScrData: null as Uint8Array | null,  // decoded on startup
 };

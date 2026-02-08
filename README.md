@@ -1,5 +1,7 @@
 # Zolyx
 
+![Zolyx loading screen](resources/loading-screen.png)
+
 **[Play Zolyx in your browser](https://arttu76.github.io/zolyx/dist/index.html)**
 
 AI-generated reverse engineering and autoconversion of the ZX Spectrum game *Zolyx* (Pete Cooke, Firebird Software, 1987) from a raw 48K Spectrum binary dump to fully documented, strongly-typed TypeScript.
@@ -49,10 +51,11 @@ npm run build
 ```
 zolyx/
   resources/
+    loading-screen.png            Title screen converted from .scr format
     zolyx.sna                     Original ZX Spectrum 48K snapshot (49179 bytes)
   src/
     index.html                    HTML entry point (CSS + canvas + module script)
-    main.ts                       Entry point: canvas setup, loading screen, game loop
+    main.ts                       Entry point: canvas setup, input, game loop
     types.ts                      TypeScript interfaces and type aliases
     constants.ts                  All game constants, direction tables, level config
     state.ts                      Shared mutable game state (single exported object)
@@ -71,9 +74,8 @@ zolyx/
     data/
       fonts.ts                    Game font ($F700), HUD font ($FA00), character map
       sprites.ts                  8x8 masked sprite data (player, chaser, cursor)
-      loading-screen.ts           Loading screen (.scr format, base64 encoded)
     rendering/
-      primitives.ts               Pixel operations: set, XOR, fill rect, blit SCR
+      primitives.ts               Pixel operations: set, XOR, fill rect
       attributes.ts               Attribute color system: set, make, fill runs/rows
       text.ts                     Text rendering: game font, HUD font, centered text
       sprites.ts                  Masked sprite drawing, spark cell rendering
@@ -207,7 +209,6 @@ type Grid = number[][];  // grid[y][x], 128x128
 | `timerExpired` | $B0C8 bit 1 | Timer reached zero |
 | `levelComplete` | $B0C8 bit 2 | Percentage >= 75% |
 | `grid[][]` | $4000/$6000 | Game field (bitmap+shadow in Z80) |
-| `loadingScrData` | (not in Z80) | Decoded .scr loading screen |
 
 ---
 
@@ -1165,18 +1166,9 @@ Each has 8 alignment variants x 32 bytes (8 rows x 4 bytes: mask1, data1, mask2,
 
 ## Rendering Details
 
-The TypeScript version redraws the entire screen each frame from game state. The rendering pipeline in `rendering/scene.ts` selects one of four modes:
+The TypeScript version redraws the entire screen each frame from game state. The game auto-starts immediately on page load (no title screen). The rendering pipeline in `rendering/scene.ts` selects one of three modes:
 
-### Start Screen
-
-1. Decode and blit the original loading screen (.scr format, base64 embedded in `data/loading-screen.ts`). The .scr format is 6912 bytes: 6144 bitmap + 768 attributes. The bitmap uses the ZX Spectrum's non-linear interleaved row format (3 thirds of 64 lines, interleaved by character-cell pixel lines).
-2. Clear rows 17--22 to black (overwrite the bottom of the loading artwork).
-3. Draw text overlay:
-   - Row 18: "PRESS ENTER TO START" (bright white)
-   - Row 20: "ARROWS=MOVE  SPACE=FIRE" (cyan)
-   - Row 22: "P=PAUSE" (cyan)
-
-### Normal Gameplay
+### Gameplay
 
 1. Set field attributes (rows 4--23) to the level color from `LEVEL_COLORS_ATTR[level & 0x0F]`.
 2. Draw grid: iterate all cells in [FIELD_MIN_X..FIELD_MAX_X, FIELD_MIN_Y..FIELD_MAX_Y], write 2x2 pixel patterns. Empty cells are skipped (PAPER shows through as the level color).

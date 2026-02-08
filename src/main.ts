@@ -1,17 +1,16 @@
 /**
  * Main entry point -- initializes the ZX Spectrum screen simulation,
- * decodes the loading screen, sets up input, and starts the game loop.
+ * sets up input, and starts the game loop.
  *
  * Targets 50fps to match the original ZX Spectrum's PAL refresh rate
  * (the game uses HALT at $C3E4 to sync to the 50Hz interrupt).
  */
 
 import { initScreen } from './screen';
-import { LOADING_SCR_B64 } from './data/loading-screen';
-import { state } from './state';
 import { setupInput } from './input';
 import { gameFrame } from './game-loop';
 import { render } from './rendering/scene';
+import { initGame } from './init';
 import { TARGET_FPS } from './constants';
 
 const FRAME_TIME: number = 1000 / TARGET_FPS;
@@ -38,15 +37,11 @@ function mainLoop(timestamp: number): void {
 // 1. Initialize the ZX Spectrum screen buffers and canvas
 initScreen();
 
-// 2. Decode loading screen from base64
-{
-  const bin = atob(LOADING_SCR_B64);
-  state.loadingScrData = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) state.loadingScrData[i] = bin.charCodeAt(i);
-}
-
-// 3. Set up keyboard input handlers
+// 2. Set up keyboard input handlers
 setupInput();
+
+// 3. Start the game immediately (no title screen)
+initGame();
 
 // 4. Start the game loop
 requestAnimationFrame((ts: number) => {

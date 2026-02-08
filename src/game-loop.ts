@@ -180,7 +180,7 @@ export function tickLevelComplete(): void {
  *     none -> loop back to $C3DC
  */
 export function gameFrame(): void {
-  if (state.startScreen || state.paused) return;
+  if (state.paused) return;
   if (state.gameOver) { state.gameOverFrame++; return; }
 
   // Level complete animation runs its own frame logic
