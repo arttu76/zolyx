@@ -2,7 +2,7 @@
 
 ![Zolyx loading screen](resources/loading-screen.png)
 
-**[Play Zolyx in your browser](https://arttu76.github.io/zolyx/dist/index.html)**
+**[Play Zolyx in your browser](https://arttu76.github.io/zolyx/dist/index.html)** | [GitHub repo](https://github.com/arttu76/zolyx)
 
 AI-generated reverse engineering and autoconversion of the ZX Spectrum game *Zolyx* (Pete Cooke, Firebird Software, 1987) from a raw 48K Spectrum binary dump to fully documented, strongly-typed TypeScript.
 

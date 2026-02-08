@@ -2,27 +2,164 @@
 ; SCREEN MEMORY & ZX SPECTRUM SYSTEM AREA
 ; ==========================================================================
 ;
-; Address ranges:
-;   $4000-$57FF  Screen bitmap (256x192 pixels, 6144 bytes)
-;                Non-linear layout: 3 thirds x 8 char rows x 8 pixel lines
-;   $5800-$5AFF  Screen attributes (32x24 cells, 768 bytes)
-;                Each byte: bit7=FLASH, bit6=BRIGHT, bits5-3=PAPER, bits2-0=INK
+; This file contains the raw screen memory captured from the Zolyx .SNA
+; snapshot file. At snapshot time, this data represents the loading screen
+; (title artwork). The game code clears and redraws the screen during
+; level initialization, so this data is only visible briefly at load time.
+;
+; ==========================================================================
+; ZX SPECTRUM SCREEN MEMORY LAYOUT OVERVIEW
+; ==========================================================================
+;
+; The ZX Spectrum's screen occupies 6912 bytes of contiguous memory:
+;
+;   $4000-$57FF  Bitmap area   (6144 bytes = 256x192 pixels, 1 bit/pixel)
+;   $5800-$5AFF  Attribute area (768 bytes = 32x24 colour cells)
+;
+; The screen is 256 pixels wide (32 bytes) and 192 pixels tall.
+; Each byte encodes 8 horizontal pixels (MSB = leftmost pixel).
+;
+; --------------------------------------------------------------------------
+; BITMAP ADDRESSING (NON-LINEAR)
+; --------------------------------------------------------------------------
+;
+; The bitmap is NOT laid out in simple top-to-bottom raster order.
+; Instead, the 192 pixel rows are divided into 3 "thirds" of 64 rows each.
+; Within each third, the addressing interleaves pixel rows from different
+; character rows, making the layout non-linear.
+;
+; A screen address is decoded from its 16-bit value as follows:
+;
+;   Bit: 15 14 13 | 12 11 | 10  9  8 | 7  6  5 | 4  3  2  1  0
+;        ---------|-------|-----------|---------|----------------
+;         0  1  0 | T1 T0 | P2 P1 P0 | R2 R1 R0|  C4 C3 C2 C1 C0
+;
+;   Bits 15-13: Always 010 (selects the screen at $4000)
+;   Bits 12-11: Third number (0-2), selects which 64-pixel-tall band
+;   Bits 10-8:  Pixel row within the character cell (0-7)
+;   Bits 7-5:   Character row within the third (0-7)
+;   Bits 4-0:   Column byte (0-31, selects which 8-pixel-wide byte)
+;
+; This means consecutive memory addresses do NOT correspond to consecutive
+; screen lines. For example:
+;
+;   $4000 = Third 0, char row 0, pixel line 0, column 0  (screen line 0)
+;   $4020 = Third 0, char row 0, pixel line 0, column 0  ... wait --
+;
+; Actually, incrementing by 32 ($20) moves to the NEXT column-0 byte,
+; which is pixel line 1 of character row 0 (not the next character row).
+; The layout within each third (2048 bytes) is:
+;
+;   Offset $000-$01F: char row 0, pixel line 0 (32 bytes)
+;   Offset $020-$03F: char row 1, pixel line 0
+;   Offset $040-$05F: char row 2, pixel line 0
+;   ...
+;   Offset $0E0-$0FF: char row 7, pixel line 0
+;   Offset $100-$11F: char row 0, pixel line 1  <-- jumps back!
+;   Offset $120-$13F: char row 1, pixel line 1
+;   ...
+;   Offset $1E0-$1FF: char row 7, pixel line 1
+;   Offset $200-$21F: char row 0, pixel line 2
+;   ...
+;   Offset $7E0-$7FF: char row 7, pixel line 7
+;
+; The three thirds occupy:
+;   Third 0: $4000-$47FF  (screen lines   0-63,  character rows  0-7)
+;   Third 1: $4800-$4FFF  (screen lines  64-127, character rows  8-15)
+;   Third 2: $5000-$57FF  (screen lines 128-191, character rows 16-23)
+;
+; --------------------------------------------------------------------------
+; ATTRIBUTE FORMAT
+; --------------------------------------------------------------------------
+;
+; The 768-byte attribute area at $5800-$5AFF provides colour for each
+; 8x8 pixel character cell. The screen has 32 columns x 24 rows = 768 cells.
+;
+; Each attribute byte is structured as:
+;
+;   Bit 7:    FLASH  (0=off, 1=alternates INK/PAPER every 16 frames)
+;   Bit 6:    BRIGHT (0=normal, 1=bright/high-intensity colours)
+;   Bits 5-3: PAPER colour (background)
+;   Bits 2-0: INK colour   (foreground)
+;
+; Colour values (0-7):
+;   0=Black  1=Blue  2=Red  3=Magenta  4=Green  5=Cyan  6=Yellow  7=White
+;
+; The attribute at address $5800 + (row * 32) + column applies to the
+; 8x8 pixel block at screen position (column*8, row*8).
+;
+; --------------------------------------------------------------------------
+; MEMORY MAP
+; --------------------------------------------------------------------------
+;
+;   $4000-$47FF  Bitmap Third 0  (2048 bytes, char rows 0-7,  lines 0-63)
+;   $4800-$4FFF  Bitmap Third 1  (2048 bytes, char rows 8-15, lines 64-127)
+;   $5000-$57FF  Bitmap Third 2  (2048 bytes, char rows 16-23, lines 128-191)
+;   $5800-$5AFF  Colour attributes (768 bytes, 32x24 character cells)
 ;   $5B00-$5BFF  ZX Spectrum system variables
-;   $5C00-$5FFF  ZX Spectrum system area (channels, etc.)
-;   $6000-$77FF  SHADOW GRID - duplicate of bitmap layout
-;                Key insight: trail cells are NOT written to shadow.
-;                Sparks and chasers read shadow to navigate, seeing trail as empty.
+;   $5C00-$5FFF  ZX Spectrum system area (channels, BASIC program, etc.)
+;
+; --------------------------------------------------------------------------
+; ZOLYX-SPECIFIC MEMORY REGIONS
+; --------------------------------------------------------------------------
+;
+;   $6000-$77FF  SHADOW GRID - a second copy of the bitmap layout
+;                Used by the game engine for entity navigation.
+;                Key insight: the player's trail is NOT written to the shadow
+;                grid. Sparks and chasers read the shadow grid to decide their
+;                movement, so they see trail cells as empty space. This is how
+;                entities can "chase" the player along unfilled territory.
+;
 ;   $9000-$93FF  Trail buffer (3 bytes per point: X, Y, direction)
+;                Records the player's drawing trail for later fill operations.
+;
 ;   $9400-$97FF  Flood fill stack (2-byte coordinate pairs)
+;                Temporary workspace for the scanline flood fill algorithm.
 ;
-; At snapshot time, this area contains the loading screen bitmap.
-; The game clears and redraws it during level initialization.
+; --------------------------------------------------------------------------
+; NOTE ON DISASSEMBLY FORMAT
+; --------------------------------------------------------------------------
 ;
+; The data below was extracted from the .SNA snapshot. Because this memory
+; region is pure screen data (not executable code), the disassembler has
+; somewhat arbitrarily interpreted some byte sequences as Z80 instructions
+; (NOP, RST 38H, LD BC,xxxx, etc.). These are NOT real instructions --
+; they are bitmap pixel data that happens to match opcode encodings.
+; The DB/DW directives are raw data bytes. The ORG gaps between data
+; blocks indicate zero-filled regions (blank areas of the loading screen).
+;
+; Most non-zero bytes are sparse because the loading screen artwork only
+; occupies portions of the display. Zero bytes (blank/black pixels) are
+; omitted by the disassembler, represented by ORG jumps to the next
+; non-zero data location.
 
 ;
 ;  DZ80 V3.4.1 Z80 Disassembly of zolyx.bin
 ;  2026/02/08 00:55
 ;
+
+; ==========================================================================
+; BITMAP THIRD 0: $4000-$47FF
+; ==========================================================================
+;
+; Screen lines 0-63 (the top 1/3 of the display).
+; Character rows 0-7 (8 rows of 8x8 pixel cells).
+;
+; Address structure within this third:
+;   $40xx-$41xx: pixel lines 0-1 of char rows 0-7
+;   $42xx-$43xx: pixel lines 2-3 of char rows 0-7
+;   $44xx-$45xx: pixel lines 4-5 of char rows 0-7
+;   $46xx-$47xx: pixel lines 6-7 of char rows 0-7
+;
+; More precisely, for address $4YZC (hex):
+;   Y (bits 10-8) = pixel line within char cell (0-7)
+;   Z (bits 7-5)  = character row within third (0-7)
+;   C (bits 4-0)  = column byte (0-31)
+;
+; The sparse data below represents the non-zero pixels of the loading
+; screen's top third. Gaps between ORG directives are zero-filled
+; (black/empty pixels).
+
 	ORG	4000H
 ;
 X4000:	NOP			; 4000  00		.
@@ -1362,7 +1499,25 @@ X4510:	NOP			; 4510  00		.
 	ORG	47FEH
 ;
 	DB	3,0FCH,0,1FH,0FAH			; 47fe .|..z
+	; NOTE: The 5 bytes at $47FE extend to $4802, crossing into Third 1's
+	; address space. The first 2 bytes ($47FE-$47FF) are in Third 0;
+	; bytes at $4800-$4802 are technically in Third 1 address range.
+
+; ==========================================================================
+; BITMAP THIRD 1: $4800-$4FFF
+; ==========================================================================
 ;
+; Screen lines 64-127 (the middle 1/3 of the display).
+; Character rows 8-15 (8 rows of 8x8 pixel cells).
+;
+; Same interleaved addressing as Third 0 but with base $4800:
+;   $48xx-$49xx: pixel lines 0-1 of char rows 8-15
+;   $4Axx-$4Bxx: pixel lines 2-3 of char rows 8-15
+;   $4Cxx-$4Dxx: pixel lines 4-5 of char rows 8-15
+;   $4Exx-$4Fxx: pixel lines 6-7 of char rows 8-15
+;
+; The data here continues the loading screen artwork (middle band).
+
 	ORG	4812H
 ;
 	DB	1FH,0E0H,1FH,0A8H,0			; 4812 .`.(.
@@ -2202,7 +2357,24 @@ X4510:	NOP			; 4510  00		.
 	DW	X01D4		; 4fe8   d4 01      T.
 ;
 	DB	0,20H,40H,41H,1,4,0			; 4fea . @A...
+
+; ==========================================================================
+; BITMAP THIRD 2: $5000-$57FF
+; ==========================================================================
 ;
+; Screen lines 128-191 (the bottom 1/3 of the display).
+; Character rows 16-23 (8 rows of 8x8 pixel cells).
+;
+; Same interleaved addressing as Thirds 0 and 1 but with base $5000:
+;   $50xx-$51xx: pixel lines 0-1 of char rows 16-23
+;   $52xx-$53xx: pixel lines 2-3 of char rows 16-23
+;   $54xx-$55xx: pixel lines 4-5 of char rows 16-23
+;   $56xx-$57xx: pixel lines 6-7 of char rows 16-23
+;
+; The loading screen's bottom third typically contains credit text
+; and the lower portions of the title artwork. The data here becomes
+; increasingly sparse toward the bottom of the screen.
+
 	ORG	5001H
 ;
 X5001:	NOP			; 5001  00		.
@@ -2758,43 +2930,112 @@ X542D:	NOP			; 542d  00		.
 	ORG	57EDH
 ;
 	DB	30H,0,60H				; 57ed 0.`
+
+; ==========================================================================
+; SCREEN ATTRIBUTES: $5800-$5AFF
+; ==========================================================================
 ;
+; 768 bytes defining the colour for each 8x8 character cell on screen.
+; Layout: 24 rows of 32 bytes each (row 0 at $5800, row 1 at $5820, ...).
+;
+; Each byte encodes:
+;   Bit 7:    FLASH  (0=off, 1=alternating INK/PAPER)
+;   Bit 6:    BRIGHT (0=normal, 1=bright colours)
+;   Bits 5-3: PAPER colour (0-7)
+;   Bits 2-0: INK colour   (0-7)
+;
+; The disassembler has output these bytes as ASCII character strings because
+; the attribute values happen to fall in the printable ASCII range:
+;
+;   'G' = $47 = 0_1_000_111 = BRIGHT, PAPER black (0), INK white (7)
+;   'F' = $46 = 0_1_000_110 = BRIGHT, PAPER black (0), INK yellow (6)
+;   'E' = $45 = 0_1_000_101 = BRIGHT, PAPER black (0), INK cyan (5)
+;   'D' = $44 = 0_1_000_100 = BRIGHT, PAPER black (0), INK green (4)
+;   'B' = $42 = 0_1_000_010 = BRIGHT, PAPER black (0), INK red (2)
+;
+; All cells have FLASH=off, BRIGHT=on, PAPER=black.
+; The INK colour varies to create the loading screen's colour regions:
+;   - White (7/'G'): dominant colour, used for most of the screen
+;   - Cyan  (5/'E'): used in the upper-left area (title/artwork)
+;   - Yellow(6/'F'): central region (Firebird logo area?)
+;   - Green (4/'D'): lower-center area
+;   - Red   (2/'B'): lower-right block (3 rows of 7 columns)
+;
+; --------------------------------------------------------------------------
+; Attribute rows 0-7 (character rows 0-7, screen lines 0-63):
+
 	ORG	5800H
 ;
-	DB	'GGGGGGGGGGGGGEGGGEEGGGEEEEEGGGGG'	; 5800
-X5820:	DB	'EEGGGGEEEEEEEEGGGGEEGGEEEEEGGEEE'	; 5820
-	DB	'EEEEEEEEEEFEEEGGGGGEEGEEGEEEEEEG'	; 5840
-	DB	'GGEEEEEEEFFFEEGGGGGEEEEEGGEEEEGG'	; 5860
-X5880:	DB	'GGGEEGEEFFFFEEGGGGGGEEEEGEEEEGGG'	; 5880
-	DB	'GGEEGGEEEFFFEEEEEEEEEGGGGGEGEEGG'	; 58a0
-	DB	'GEEEGGEEEEGEEEEEEEEEEEGGGGGGEEEG'	; 58c0
-	DB	'GEEEGGGGEEEEEEEGGGEEEEGGGGGGGEEE'	; 58e0
-	DB	'GEEGEEEEGGGGGGGGGGEEEEGGGGGGGGGE'	; 5900
-	DB	'EEEEEEGGFFFFGGGGGGGGGGGFGGGGGGGG'	; 5920
-	DB	'EEEEGGGGFFFFGGGGGGGGGFFFFGGGGGGG'	; 5940
-	DB	'EEEGGGGGFFFFGGGGGGGGGFFFFGGGGGGG'	; 5960
-	DB	'EEEGGGGGFFFFFGGGGGGGGGFGGGGGGGGG'	; 5980
-	DB	'EEGGGFFFGGGFFGGGGGGGGGGGGGGGGGGG'	; 59a0
-	DB	'GGGGGFFFGDDGGGDDDGGGGGGGGGGGGGGG'	; 59c0
-	DB	'GGGGFFFFFDDDDDDDDGGGGGGGGGGGGGGG'	; 59e0'
-	DB	'GGGGFFFFGGDDDDDDGGGGGGGGBBBBBBBG'	; 5a00
-	DB	'GGGGFFFFGDDDDGGGGGGGGGGGBBBBBBBG'	; 5a20
-	DB	'GGGGFFFGGDDGGGGGGGGGGGGGBBBBBBBG'	; 5a40
-	DB	'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'	; 5a60
-	DB	'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'	; 5a80
-	DB	'GGGGGGGGGGGGGGGGGGGGGGGG'		; 5aa0
-	DB	5,5,5,5,5,5,5,47H			; 5ab8 .......G
-	DB	7,7,7,7,7,7,7,7				; 5ac0 ........
-	DB	7,7,7,7,7,7,7,7				; 5ac8 ........
-	DB	7,7,7,7,7,7,7,7				; 5ad0 ........
-	DB	7,7,7,7,7,7,7,7				; 5ad8 ........
-	DB	'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'	; 5ae0'
+	DB	'GGGGGGGGGGGGGEGGGEEGGGEEEEEGGGGG'	; 5800 row 0
+X5820:	DB	'EEGGGGEEEEEEEEGGGGEEGGEEEEEGGEEE'	; 5820 row 1
+	DB	'EEEEEEEEEEFEEEGGGGGEEGEEGEEEEEEG'	; 5840 row 2
+	DB	'GGEEEEEEEFFFEEGGGGGEEEEEGGEEEEGG'	; 5860 row 3
+X5880:	DB	'GGGEEGEEFFFFEEGGGGGGEEEEGEEEEGGG'	; 5880 row 4
+	DB	'GGEEGGEEEFFFEEEEEEEEEGGGGGEGEEGG'	; 58a0 row 5
+	DB	'GEEEGGEEEEGEEEEEEEEEEEGGGGGGEEEG'	; 58c0 row 6
+	DB	'GEEEGGGGEEEEEEEGGGEEEEGGGGGGGEEE'	; 58e0 row 7
+; --------------------------------------------------------------------------
+; Attribute rows 8-15 (character rows 8-15, screen lines 64-127):
+	DB	'GEEGEEEEGGGGGGGGGGEEEEGGGGGGGGGE'	; 5900 row 8
+	DB	'EEEEEEGGFFFFGGGGGGGGGGGFGGGGGGGG'	; 5920 row 9  (yellow region appears)
+	DB	'EEEEGGGGFFFFGGGGGGGGGFFFFGGGGGGG'	; 5940 row 10
+	DB	'EEEGGGGGFFFFGGGGGGGGGFFFFGGGGGGG'	; 5960 row 11
+	DB	'EEEGGGGGFFFFFGGGGGGGGGFGGGGGGGGG'	; 5980 row 12
+	DB	'EEGGGFFFGGGFFGGGGGGGGGGGGGGGGGGG'	; 59a0 row 13
+	DB	'GGGGGFFFGDDGGGDDDGGGGGGGGGGGGGGG'	; 59c0 row 14 (green region appears)
+	DB	'GGGGFFFFFDDDDDDDDGGGGGGGGGGGGGGG'	; 59e0 row 15
+; --------------------------------------------------------------------------
+; Attribute rows 16-23 (character rows 16-23, screen lines 128-191):
+	DB	'GGGGFFFFGGDDDDDDGGGGGGGGBBBBBBBG'	; 5a00 row 16 (red region appears)
+	DB	'GGGGFFFFGDDDDGGGGGGGGGGGBBBBBBBG'	; 5a20 row 17
+	DB	'GGGGFFFGGDDGGGGGGGGGGGGGBBBBBBBG'	; 5a40 row 18
+	DB	'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'	; 5a60 row 19
+	DB	'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'	; 5a80 row 20
+	DB	'GGGGGGGGGGGGGGGGGGGGGGGG'		; 5aa0 row 21 (24 bytes, cols 0-23)
+	; Row 21 continues at $5ab8 (cols 24-31) with raw numeric values:
+	DB	5,5,5,5,5,5,5,47H			; 5ab8 row 21 cols 24-31
+	; $05 = 0_0_000_101 = no BRIGHT, PAPER black, INK cyan
+	; $47 = 'G' = BRIGHT, PAPER black, INK white
+	; Row 22:
+	DB	7,7,7,7,7,7,7,7				; 5ac0 row 22 cols 0-7
+	DB	7,7,7,7,7,7,7,7				; 5ac8 row 22 cols 8-15
+	DB	7,7,7,7,7,7,7,7				; 5ad0 row 22 cols 16-23
+	DB	7,7,7,7,7,7,7,7				; 5ad8 row 22 cols 24-31
+	; $07 = 0_0_000_111 = no BRIGHT, PAPER black, INK white
+	; Row 23:
+	DB	'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'	; 5ae0 row 23
 	DB	0					; 5b00 .
+
+; ==========================================================================
+; ZX SPECTRUM SYSTEM VARIABLES: $5B00-$5BFF
+; ==========================================================================
 ;
+; This 256-byte region is used by the ZX Spectrum ROM for system variables.
+; The snapshot captures whatever state these variables were in at the time
+; of the .SNA dump. Most of this area is zero in the snapshot.
+; Only a few bytes have non-zero values.
+
 	ORG	5BFEH
 ;
 X5BFE:	NOP			; 5bfe  00		.
+
+; ==========================================================================
+; ZX SPECTRUM SYSTEM AREA: $5C00-$5FFF
+; ==========================================================================
 ;
+; This region contains the ZX Spectrum's channel information, BASIC program
+; area, calculator stack, and other system data structures managed by the ROM.
+; The data below is the snapshot's captured state of these system structures.
+;
+; Key locations in the standard Spectrum memory map:
+;   $5C00-$5C09: Channel information (I/O channels K, S, P)
+;   $5C10-$5CB5: System variables (KSTATE, FLAGS, ERR_SP, etc.)
+;   $5CB6+:      BASIC program area / channel data
+;   $5D00+:      BASIC program text or workspace
+;
+; In the Zolyx snapshot, this area contains remnants of the BASIC loader
+; program that was used to load the game from tape, plus system state.
+
 	ORG	5C03H
 ;
 	NOP			; 5c03  00		.
@@ -2950,7 +3191,7 @@ X5CBB:	DB	0F4H,9					; 5cbb t.
 	ORG	5D70H
 ;
 	DB	3					; 5d70 .
-	DB	'loader    '				; 5d71
+	DB	'loader    '				; 5d71 -- BASIC filename for tape loading
 	DB	0,2,0					; 5d7b ...
 	DW	X8EFE		; 5d7e   fe 8e      ~.
 ;
@@ -2959,7 +3200,16 @@ X5CBB:	DB	0F4H,9					; 5cbb t.
 	ORG	5D84H
 ;
 	DB	0FEH					; 5d84 ~
+
+; ==========================================================================
+; END OF SYSTEM AREA / UPPER MEMORY: $5FF8+
+; ==========================================================================
 ;
+; Data at $5FF8-$5FFF is the tail end of the system/workspace area.
+; At $6000+ begins the SHADOW GRID region which Zolyx uses as a second
+; copy of the game field bitmap. The loader bootstrap code appears to
+; occupy some of this space in the snapshot.
+
 	ORG	5FF8H
 ;
 	DB	4BH					; 5ff8 K
@@ -2967,7 +3217,21 @@ X5CBB:	DB	0F4H,9					; 5cbb t.
 ;
 	DB	0FFH,93H,0				; 5ffb ...
 X5FFE:	DB	0A4H					; 5ffe $
+
+; ==========================================================================
+; SHADOW GRID / LOADER BOOTSTRAP: $5FFF-$604F
+; ==========================================================================
 ;
+; $6000-$77FF is the shadow grid in Zolyx -- a mirror of the $4000-$57FF
+; bitmap layout but where the player's trail is NOT recorded. Chasers and
+; sparks read this shadow grid to navigate, causing them to treat trail
+; cells as empty space.
+;
+; In the snapshot, the beginning of this region contains the tape loader
+; bootstrap code (LDDR to copy code, JP to game entry point). This code
+; ran during the loading process and is no longer relevant at runtime.
+; The game reinitializes this entire $6000-$77FF region on level start.
+
 	CP	21H		; 5fff  fe 21		~!
 	RST	38H		; 6001  ff		.
 	DB	0FDH,11H	; 6002  fd 11		}.
@@ -2976,7 +3240,7 @@ X5FFE:	DB	0A4H					; 5ffe $
 	RST	38H		; 6005  ff		.
 	LD	BC,X5001	; 6006  01 01 50	..P
 	LDDR			; 6009  ed b8		m8
-	JP	XB000		; 600b  c3 00 b0	C.0
+	JP	XB000		; 600b  c3 00 b0	C.0  -- jumps to game code at $B000
 ;
 	DW	X37AF		; 600e   af 37      /7
 ;
@@ -3017,8 +3281,30 @@ X5FFE:	DB	0A4H					; 5ffe $
 	DB	4CH					; 604c L
 	DW	X30FF		; 604d   ff 30      .0
 	DW	X00D5		; 604f   d5 00      U.
+
+; ==========================================================================
+; HIGH MEMORY REFERENCES: $7FDE+
+; ==========================================================================
 ;
+; These addresses are outside the screen memory and shadow grid regions.
+; They appear in this file because the disassembler included them as part
+; of the contiguous data dump from the .SNA snapshot.
 ;
+; $7FDE-$7FFF: Tail end of the shadow grid + any residual data.
+;              In the standard Spectrum memory map this is general-purpose
+;              RAM. Zolyx uses various high-memory regions for game data.
+;
+; $8000+:      Referenced label targets (X8014, X8080, X80FF, X810C, etc.)
+;              These are address constants used as branch targets or data
+;              pointers by the game code elsewhere in the disassembly.
+;
+; $9000+:      Trail buffer and flood fill stack workspace.
+;
+; $AE00+:      Game data tables / initialization code referenced by the
+;              main game routines. The code at $AF33+ is the title screen /
+;              attract mode loop (HALT for frame sync, attribute cycling,
+;              input polling, PRNG, etc.).
+
 	ORG	7FDEH
 ;
 	DB	0F3H					; 7fde s
@@ -3056,21 +3342,30 @@ X7FFE:	NOP			; 7ffe  00		.
 	ORG	8014H
 ;
 X8014:	NOP			; 8014  00		.
+	; Label referenced as branch target from $7FF6 (DJNZ)
 ;
 	ORG	8080H
 ;
 X8080:	NOP			; 8080  00		.
+	; Referenced label (data pointer or branch target)
 ;
 	ORG	80FFH
 ;
 X80FF:	NOP			; 80ff  00		.
+	; Referenced label
 ;
 	ORG	810CH
 ;
 X810C:	NOP			; 810c  00		.
 X810D:	NOP			; 810d  00		.
 X810E:	NOP			; 810e  00		.
-;
+	; Three consecutive referenced labels at $810C-$810E
+
+; --------------------------------------------------------------------------
+; Trail buffer and flood fill stack workspace labels:
+;   $9000 = start of trail buffer (3 bytes per entry: X, Y, direction)
+;   $9002 = offset into trail buffer (used for indexed access)
+
 	ORG	9000H
 ;
 X9000:	NOP			; 9000  00		.
@@ -3078,11 +3373,39 @@ X9000:	NOP			; 9000  00		.
 	ORG	9002H
 ;
 X9002:	NOP			; 9002  00		.
-;
+
+; --------------------------------------------------------------------------
+
 	ORG	0A0FFH
 ;
 XA0FF:	NOP			; a0ff  00		.
+
+; ==========================================================================
+; GAME DATA / TITLE SCREEN CODE: $AE00+
+; ==========================================================================
 ;
+; This section contains game data tables (sprite patterns, colour cycling
+; data) and the title screen / attract mode code. Key routines:
+;
+;   $AECB-$AEE3: Sprite pattern data (alternating bit patterns for
+;                 entities -- $55/$AA checkerboard, $FF solid, etc.)
+;
+;   $AEE7-$AF2F: Initialization / tape loader remnants
+;
+;   $AF33 (XAF33): Title screen main loop
+;     - HALT for frame synchronization (50 fps on PAL Spectrum)
+;     - Calls XB1B0 (attribute colour cycling animation)
+;     - Increments colour cycle counter at XB1AF
+;     - Wraps counter at 56 ($38) back to 0
+;     - Computes attribute byte from counter (SRL x3, INC, OR $40)
+;     - Fills attribute rectangle via FILL_ATTR_RECT ($BAF6)
+;     - Polls keyboard via XB26E for input
+;     - Checks for keys 1, 2, or 4 (player count selection)
+;     - Loops back to HALT if no valid input
+;
+;   $AFDD-$AFFF: Key processing, PRNG-based level selection,
+;                player configuration setup
+
 	ORG	0AE00H
 ;
 	DW	XF5C3		; ae00   c3 f5      Cu
@@ -3104,6 +3427,9 @@ XA0FF:	NOP			; a0ff  00		.
 ;
 	ORG	0AECBH
 ;
+	; Sprite/entity pixel patterns:
+	; $55 = 01010101 (alternating pixels), $AA = 10101010 (inverse)
+	; $FF = solid, $00 = empty -- used for animated entity rendering
 	DB	55H,0,0AAH,55H,0FFH			; aecb U.*U.
 	DW	X01FF		; aed0   ff 01      ..
 ;
@@ -3178,33 +3504,37 @@ XA0FF:	NOP			; a0ff  00		.
 ;
 	DB	0F9H					; af32 y
 ;
-XAF33:	HALT			; af33  76		v
+; --- Title screen main loop ---
+; Waits for a frame (HALT), cycles rainbow colours on the title,
+; then polls keyboard for player count selection (1, 2, or 4).
+; Loops until valid input is received.
+XAF33:	HALT			; af33  76  -- wait for vertical blank (frame sync)
 ;
-	CALL	XB1B0		; af34  cd b0 b1	M01
-	LD	HL,XB1AF	; af37  21 af b1	!/1
-	INC	(HL)		; af3a  34		4
-	LD	A,(HL)		; af3b  7e		~
-	CP	38H		; af3c  fe 38		~8
-	JR	C,XAF42		; af3e  38 02		8.
-	LD	A,0		; af40  3e 00		>.
-XAF42:	LD	(HL),A		; af42  77		w
-	SRL	A		; af43  cb 3f		K?
-	SRL	A		; af45  cb 3f		K?
-	SRL	A		; af47  cb 3f		K?
-	INC	A		; af49  3c		<
-	OR	40H		; af4a  f6 40		v@
-	LD	BC,X1700	; af4c  01 00 17	...
-	LD	DE,X0120	; af4f  11 20 01	. .
-	CALL	FILL_ATTR_RECT		; af52  cd f6 ba	Mv:
-	CALL	XB26E		; af55  cd 6e b2	Mn2
-	LD	A,E		; af58  7b		{
-	CP	1		; af59  fe 01		~.
-	JP	Z,XB16A		; af5b  ca 6a b1	Jj1
-	CP	2		; af5e  fe 02		~.
-	JP	Z,XB16A		; af60  ca 6a b1	Jj1
-	CP	4		; af63  fe 04		~.
-	JP	Z,XB16A		; af65  ca 6a b1	Jj1
-	JR	XAF33		; af68  18 c9		.I
+	CALL	XB1B0		; af34  cd b0 b1  -- update title screen animation
+	LD	HL,XB1AF	; af37  21 af b1  -- HL -> colour cycle counter
+	INC	(HL)		; af3a  34        -- increment counter each frame
+	LD	A,(HL)		; af3b  7e        -- A = current counter value
+	CP	38H		; af3c  fe 38     -- counter >= 56?
+	JR	C,XAF42		; af3e  38 02     -- no: skip reset
+	LD	A,0		; af40  3e 00     -- yes: reset counter to 0
+XAF42:	LD	(HL),A		; af42  77        -- store (possibly reset) counter
+	SRL	A		; af43  cb 3f     -- A = counter >> 1
+	SRL	A		; af45  cb 3f     -- A = counter >> 2
+	SRL	A		; af47  cb 3f     -- A = counter >> 3 (0-6 range)
+	INC	A		; af49  3c        -- A = 1-7 (INK colour)
+	OR	40H		; af4a  f6 40     -- set BRIGHT bit -> attribute byte
+	LD	BC,X1700	; af4c  01 00 17  -- B=0 (row), C=$17=23 (height)
+	LD	DE,X0120	; af4f  11 20 01  -- D=$20=32 (width), E=1 (col)
+	CALL	FILL_ATTR_RECT		; af52  cd f6 ba  -- fill title area with colour
+	CALL	XB26E		; af55  cd 6e b2  -- poll keyboard, result in E
+	LD	A,E		; af58  7b        -- A = key pressed
+	CP	1		; af59  fe 01     -- key '1'? (1 player)
+	JP	Z,XB16A		; af5b  ca 6a b1  -- yes: start game
+	CP	2		; af5e  fe 02     -- key '2'? (2 players)
+	JP	Z,XB16A		; af60  ca 6a b1  -- yes: start game
+	CP	4		; af63  fe 04     -- key '4'? (4 players)
+	JP	Z,XB16A		; af65  ca 6a b1  -- yes: start game
+	JR	XAF33		; af68  18 c9     -- loop: wait for valid input
 ;
 	DB	21H,94H					; af6a !.
 	DW	XCBB2		; af6c   b2 cb      2K
@@ -3229,8 +3559,9 @@ XAF84:	LD	A,(HL)		; af84  7e		~
 	DJNZ	XAF84		; af8d  10 f5		.u
 	JP	XB2A3		; af8f  c3 a3 b2	C#2
 ;
-	DB	1EH,47H,1FH,3AH,17H			; af92 .G.:.
-	DB	'Press N, Space or Fire.'		; af97
+	; Text string data for the title screen prompt:
+	DB	1EH,47H,1FH,3AH,17H			; af92 .G.:. -- cursor positioning codes
+	DB	'Press N, Space or Fire.'		; af97   -- the actual prompt text
 	DB	0,47H,21H,4AH				; afae .G!J
 	DW	X35B2		; afb2   b2 35      25
 ;
@@ -3246,17 +3577,18 @@ XAF84:	LD	A,(HL)		; af84  7e		~
 	CP	1FH		; afc3  fe 1f		~.
 	RET	NZ		; afc5  c0		@
 	LD	(HL),38H	; afc6  36 38		68
-	CALL	PRNG		; afc8  cd e4 d3	MdS
-	AND	0FH		; afcb  e6 0f		f.
-	ADD	A,A		; afcd  87		.
-	LD	E,A		; afce  5f		_
-	LD	D,0		; afcf  16 00		..
-	LD	HL,XB24D	; afd1  21 4d b2	!M2
-	ADD	HL,DE		; afd4  19		.
-	LD	DE,XB24B	; afd5  11 4b b2	.K2
-	LDI			; afd8  ed a0		m 
-	LDI			; afda  ed a0		m 
-	RET			; afdc  c9		I
+	; When colour counter wraps ($1F), use PRNG to pick a random level colour
+	CALL	PRNG		; afc8  cd e4 d3  -- get pseudo-random number
+	AND	0FH		; afcb  e6 0f     -- mask to 0-15
+	ADD	A,A		; afcd  87        -- *2 (word index into table)
+	LD	E,A		; afce  5f        -- DE = table offset
+	LD	D,0		; afcf  16 00
+	LD	HL,XB24D	; afd1  21 4d b2  -- HL -> colour table
+	ADD	HL,DE		; afd4  19        -- HL -> selected entry
+	LD	DE,XB24B	; afd5  11 4b b2  -- DE -> active colour pair
+	LDI			; afd8  ed a0     -- copy 2 bytes (colour pair)
+	LDI			; afda  ed a0
+	RET			; afdc  c9
 ;
 XAFDD:	LD	C,A		; afdd  4f		O
 	ADD	A,A		; afde  87		.

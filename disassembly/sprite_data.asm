@@ -1,39 +1,61 @@
 ; ==========================================================================
-; SPRITE & FONT DATA ($F000-$FFFF)
+; SPRITE, FONT, AND SYSTEM DATA ($F000-$FFFF)
 ; ==========================================================================
 ;
-; ENTITY SPRITES ($F000-$F2FF):
-;   Each entity has 256 bytes = 8 alignment variants x 32 bytes.
-;   Each variant: 8 rows x 4 bytes (mask1, data1, mask2, data2).
-;   Composited via: screen = (screen AND mask) OR data.
+; This page contains all graphical data (sprites, fonts), lookup tables,
+; and the IM2 interrupt vector table. Almost all bytes here are DATA
+; (not executable code), but the disassembler has decoded them as Z80
+; instructions. Treat all instruction mnemonics as raw byte values.
 ;
-;   $F000: Player — hollow circle outline
-;   $F100: Chaser — pac-man eye shape
-;   $F200: Trail Cursor — checkerboard pattern
+; --------------------------------------------------------------------------
+; SECTION INDEX
+; --------------------------------------------------------------------------
+;   $F000-$F0FF  Player sprite — hollow circle outline (256 bytes)
+;   $F100-$F1FF  Chaser sprite — pac-man eye shape (256 bytes)
+;   $F200-$F2FF  Trail cursor sprite — checkerboard pattern (256 bytes)
+;   $F300-$F6FF  Spark animation frame data (~1024 bytes)
+;                Lookup tables for spark rendering: frames, positions,
+;                and shape data used by the spark drawing routine.
+;   $F700-$F9FF  Game font — 96 chars x 8 bytes (768 bytes)
+;                Full printable ASCII (space $20 through tilde $7E).
+;                Wider/bolder glyphs than ZX ROM font.
+;   $FA00-$FAFF  HUD font — 32 chars x 8 bytes (256 bytes)
+;                Limited charset for score/level/time display.
+;                Rendered double-height (8x16) by routine at $D386.
+;   $FB00-$FB03  Cell mask table: $C0,$30,$0C,$03
+;                Selects which 2-bit cell within a byte (index = X & 3).
+;   $FB08-$FB0E  Bit mask table: $80,$40,$20,$10,$08,$04,$02
+;   $FC00-$FD7F  Row pointer table — pre-computed screen addresses
+;                for game field pixel rows. Avoids recomputing the
+;                ZX Spectrum's non-linear bitmap row layout each frame.
+;   $FDFD        IM2 interrupt service routine entry (JP $BB51)
+;   $FE00-$FEFF  IM2 vector table — 256 entries of $FD,$FD
+;                Points all interrupts to $FDFD (the ISR)
+;   $FF00-$FFFF  Spark sprite data and additional lookup tables
 ;
-; GAME FONT ($F700-$F9FF):
-;   96 characters x 8 bytes = 768 bytes.
-;   Full printable ASCII range (space through tilde).
-;   Wider/bolder glyphs than standard ZX ROM font.
-;   Used for: game over text, start screen, general text.
-;
-; HUD FONT ($FA00-$FAFF):
-;   32 characters x 8 bytes = 256 bytes.
-;   Rendered double-height (8x16) by $D386.
-;   Limited charset: 0-9, space, %, S, c, o, r, e, L, v, l, i, s, T, m
-;   Just enough for "Score", "Level", "Time", "Lives", numbers, "%".
-;
-; CELL MASK TABLE ($FB00, 4 bytes):
-;   $C0, $30, $0C, $03 — selects which 2-bit cell within a byte.
-;   Index = X & 3.
-;
-; ROW POINTER TABLE ($FC00+):
-;   Pre-computed screen line addresses for game field rows.
-;   Avoids recomputing the ZX Spectrum's non-linear row layout each time.
+; --------------------------------------------------------------------------
+; ENTITY SPRITE FORMAT
+; --------------------------------------------------------------------------
+;   Each entity sprite is 256 bytes = 8 alignment variants x 32 bytes.
+;   Each variant handles a different sub-pixel X alignment (0-7 pixels).
+;   Each variant has 8 rows x 4 bytes per row:
+;     byte 0: mask for left byte  (AND with screen)
+;     byte 1: data for left byte  (OR onto screen)
+;     byte 2: mask for right byte (AND with screen)
+;     byte 3: data for right byte (OR onto screen)
+;   Compositing: screen = (screen AND mask) OR data
+;   Variants at offsets: $00,$20,$40,$60,$80,$A0,$C0,$E0
+; --------------------------------------------------------------------------
 ;
 
 
-; --- Player sprite data ---
+; ==========================================================================
+; PLAYER SPRITE ($F000-$F0FF) — Hollow circle outline
+; ==========================================================================
+; 8 alignment variants x 32 bytes = 256 bytes.
+; Variant 0 at $F000, variant 1 at $F020, ..., variant 7 at $F0E0.
+; ==========================================================================
+; --- Variant 0 (aligned, shift=0) ---
 SPRITE_PLAYER:
 	RST	38H		; f000  ff		.
 	NOP			; f001  00		.
@@ -65,6 +87,7 @@ SPRITE_PLAYER:
 	NOP			; f01d  00		.
 	RST	38H		; f01e  ff		.
 	NOP			; f01f  00		.
+; --- Variant 1 (shift=1) ---
 	RST	38H		; f020  ff		.
 	NOP			; f021  00		.
 	RST	38H		; f022  ff		.
@@ -89,6 +112,7 @@ SPRITE_PLAYER:
 	NOP			; f03d  00		.
 	RST	38H		; f03e  ff		.
 	NOP			; f03f  00		.
+; --- Variant 2 (shift=2) ---
 	RST	38H		; f040  ff		.
 	NOP			; f041  00		.
 	RST	38H		; f042  ff		.
@@ -117,6 +141,7 @@ SPRITE_PLAYER:
 	NOP			; f05d  00		.
 	RST	38H		; f05e  ff		.
 	NOP			; f05f  00		.
+; --- Variant 3 (shift=3) ---
 	RST	38H		; f060  ff		.
 	NOP			; f061  00		.
 	RST	38H		; f062  ff		.
@@ -149,6 +174,7 @@ SPRITE_PLAYER:
 	NOP			; f07d  00		.
 	RST	38H		; f07e  ff		.
 XF07F:	NOP			; f07f  00		.
+; --- Variant 4 (shift=4) ---
 	RST	38H		; f080  ff		.
 	NOP			; f081  00		.
 	RST	38H		; f082  ff		.
@@ -175,6 +201,7 @@ XF095:	INC	B		; f095  04		.
 	NOP			; f09d  00		.
 	RST	38H		; f09e  ff		.
 	NOP			; f09f  00		.
+; --- Variant 5 (shift=5) ---
 	RST	38H		; f0a0  ff		.
 	NOP			; f0a1  00		.
 	RST	38H		; f0a2  ff		.
@@ -198,6 +225,7 @@ XF0B7:	DJNZ	XF0B7		; f0b7  10 fe		.~
 	NOP			; f0bd  00		.
 	RST	38H		; f0be  ff		.
 XF0BF:	NOP			; f0bf  00		.
+; --- Variant 6 (shift=6) ---
 	RST	38H		; f0c0  ff		.
 	NOP			; f0c1  00		.
 	RST	38H		; f0c2  ff		.
@@ -226,6 +254,7 @@ XF0D6:	RLCA			; f0d6  07		.
 	NOP			; f0dd  00		.
 	RST	38H		; f0de  ff		.
 	NOP			; f0df  00		.
+; --- Variant 7 (shift=7) ---
 	RST	38H		; f0e0  ff		.
 XF0E1:	NOP			; f0e1  00		.
 	RST	38H		; f0e2  ff		.
@@ -259,7 +288,13 @@ XF0E1:	NOP			; f0e1  00		.
 	RST	38H		; f0fe  ff		.
 XF0FF:	NOP			; f0ff  00		.
 
-; --- Chaser sprite data ---
+; ==========================================================================
+; CHASER SPRITE ($F100-$F1FF) — Pac-man eye shape
+; ==========================================================================
+; 8 alignment variants x 32 bytes = 256 bytes.
+; Variant 0 at $F100, variant 1 at $F120, ..., variant 7 at $F1E0.
+; ==========================================================================
+; --- Variant 0 (aligned, shift=0) ---
 SPRITE_CHASER:
 	RST	38H		; f100  ff		.
 	NOP			; f101  00		.
@@ -284,6 +319,7 @@ SPRITE_CHASER:
 	DW	X00FF		; f11a   ff 00      ..
 	DW	X00FF		; f11c   ff 00      ..
 	DW	X00FF		; f11e   ff 00      ..
+; --- Variant 1 (shift=1) ---
 	DW	X00FF		; f120   ff 00      ..
 	DW	X00FF		; f122   ff 00      ..
 ;
@@ -302,6 +338,7 @@ SPRITE_CHASER:
 	DW	X00FF		; f13a   ff 00      ..
 	DW	X00FF		; f13c   ff 00      ..
 	DW	X00FF		; f13e   ff 00      ..
+; --- Variant 2 (shift=2) ---
 	DW	X00FF		; f140   ff 00      ..
 	DW	X00FF		; f142   ff 00      ..
 	DW	X0FF0		; f144   f0 0f      p.
@@ -313,6 +350,7 @@ SPRITE_CHASER:
 	DW	X00FF		; f15a   ff 00      ..
 	DW	X00FF		; f15c   ff 00      ..
 	DW	X00FF		; f15e   ff 00      ..
+; --- Variant 3 (shift=3) ---
 	DW	X00FF		; f160   ff 00      ..
 	DW	X00FF		; f162   ff 00      ..
 ;
@@ -331,6 +369,7 @@ SPRITE_CHASER:
 	DB	3FH,0C0H,0F8H,7,7FH,80H			; f176 ?@x...
 	DW	X00FF		; f17c   ff 00      ..
 	DW	X00FF		; f17e   ff 00      ..
+; --- Variant 4 (shift=4) ---
 	DW	X00FF		; f180   ff 00      ..
 	DW	X00FF		; f182   ff 00      ..
 	DW	X03FC		; f184   fc 03      |.
@@ -343,6 +382,7 @@ SPRITE_CHASER:
 	DB	3FH,0C0H				; f19a ?@
 	DW	X00FF		; f19c   ff 00      ..
 	DW	X00FF		; f19e   ff 00      ..
+; --- Variant 5 (shift=5) ---
 	DW	X00FF		; f1a0   ff 00      ..
 	DW	X00FF		; f1a2   ff 00      ..
 	DW	X01FE		; f1a4   fe 01      ~.
@@ -364,6 +404,7 @@ SPRITE_CHASER:
 	DB	1,1FH,0E0H				; f1b9 ..`
 	DW	X00FF		; f1bc   ff 00      ..
 	DW	X00FF		; f1be   ff 00      ..
+; --- Variant 6 (shift=6) ---
 	DW	X00FF		; f1c0   ff 00      ..
 	DW	X00FF		; f1c2   ff 00      ..
 ;
@@ -392,6 +433,7 @@ SPRITE_CHASER:
 	NOP			; f1dd  00		.
 	RST	38H		; f1de  ff		.
 	NOP			; f1df  00		.
+; --- Variant 7 (shift=7) ---
 	RST	38H		; f1e0  ff		.
 	NOP			; f1e1  00		.
 	RST	38H		; f1e2  ff		.
@@ -417,7 +459,13 @@ SPRITE_CHASER:
 	RST	38H		; f1fe  ff		.
 XF1FF:	NOP			; f1ff  00		.
 
-; --- Cursor sprite data ---
+; ==========================================================================
+; TRAIL CURSOR SPRITE ($F200-$F2FF) — Checkerboard pattern
+; ==========================================================================
+; 8 alignment variants x 32 bytes = 256 bytes.
+; Variant 0 at $F200, variant 1 at $F220, ..., variant 7 at $F2E0.
+; ==========================================================================
+; --- Variant 0 (aligned, shift=0) ---
 SPRITE_CURSOR:
 	RST	38H		; f200  ff		.
 	NOP			; f201  00		.
@@ -442,6 +490,7 @@ SPRITE_CURSOR:
 	DW	X00FF		; f21a   ff 00      ..
 	DW	X00FF		; f21c   ff 00      ..
 	DW	X00FF		; f21e   ff 00      ..
+; --- Variant 1 (shift=1) ---
 	DW	X00FF		; f220   ff 00      ..
 	DW	X00FF		; f222   ff 00      ..
 ;
@@ -460,6 +509,7 @@ SPRITE_CURSOR:
 	DW	X00FF		; f23a   ff 00      ..
 	DW	X00FF		; f23c   ff 00      ..
 	DW	X00FF		; f23e   ff 00      ..
+; --- Variant 2 (shift=2) ---
 	DW	X00FF		; f240   ff 00      ..
 	DW	X00FF		; f242   ff 00      ..
 	DW	X0FF0		; f244   f0 0f      p.
@@ -471,6 +521,7 @@ SPRITE_CURSOR:
 	DW	X00FF		; f25a   ff 00      ..
 	DW	X00FF		; f25c   ff 00      ..
 	DW	X00FF		; f25e   ff 00      ..
+; --- Variant 3 (shift=3) ---
 	DW	X00FF		; f260   ff 00      ..
 	DW	X00FF		; f262   ff 00      ..
 ;
@@ -489,6 +540,7 @@ SPRITE_CURSOR:
 	DB	3FH,0C0H,0F8H,7,7FH,80H			; f276 ?@x...
 	DW	X00FF		; f27c   ff 00      ..
 	DW	X00FF		; f27e   ff 00      ..
+; --- Variant 4 (shift=4) ---
 	DW	X00FF		; f280   ff 00      ..
 	DW	X00FF		; f282   ff 00      ..
 	DW	X03FC		; f284   fc 03      |.
@@ -501,6 +553,7 @@ SPRITE_CURSOR:
 	DB	3FH,0C0H				; f29a ?@
 	DW	X00FF		; f29c   ff 00      ..
 	DW	X00FF		; f29e   ff 00      ..
+; --- Variant 5 (shift=5) ---
 	DW	X00FF		; f2a0   ff 00      ..
 	DW	X00FF		; f2a2   ff 00      ..
 	DW	X01FE		; f2a4   fe 01      ~.
@@ -521,6 +574,7 @@ SPRITE_CURSOR:
 	DB	1,1FH,0E0H				; f2b9 ..`
 	DW	X00FF		; f2bc   ff 00      ..
 	DW	X00FF		; f2be   ff 00      ..
+; --- Variant 6 (shift=6) ---
 	DW	X00FF		; f2c0   ff 00      ..
 ;
 	DW	X00FF		; f2c2   ff 00      ..
@@ -550,6 +604,7 @@ SPRITE_CURSOR:
 	NOP			; f2dd  00		.
 	RST	38H		; f2de  ff		.
 	NOP			; f2df  00		.
+; --- Variant 7 (shift=7) ---
 	RST	38H		; f2e0  ff		.
 	NOP			; f2e1  00		.
 	RST	38H		; f2e2  ff		.
@@ -578,6 +633,16 @@ SPRITE_CURSOR:
 	NOP			; f2fd  00		.
 	RST	38H		; f2fe  ff		.
 	NOP			; f2ff  00		.
+;
+; ==========================================================================
+; SPARK ANIMATION DATA ($F300-$F6FF)
+; ==========================================================================
+; Lookup tables and frame data for the spark (explosion) animation
+; effect. Contains pre-shifted sprite patterns and position offsets
+; used by the spark rendering routine. The exact internal format is
+; complex — each frame encodes multiple particle positions and their
+; bitmap patterns. Approximately 1024 bytes.
+; ==========================================================================
 	RST	38H		; f300  ff		.
 	NOP			; f301  00		.
 	RST	38H		; f302  ff		.
@@ -954,20 +1019,21 @@ XF5FF:	INC	B		; f5ff  04		.
 	LD	B,0FFH		; f61d  06 ff		..
 	NOP			; f61f  00		.
 ;
+; ==========================================================================
+; GAME FONT ($F700-$F9FF) — 96 characters x 8 bytes = 768 bytes
+; ==========================================================================
+; Full printable ASCII range (space $20 through tilde $7E + solid block).
+; Each character is 8 bytes (8x8 pixel bitmap, top to bottom).
+; Wider/bolder glyphs than the standard ZX ROM font.
+; Characters below are listed starting from '!' ($21) at $F708.
+; (Space $20 at $F700 is all zeros — gap in ORG addresses.)
+; ==========================================================================
 	ORG	0F708H
 ;
-	LD	H,B		; f708  60		`
-	LD	H,B		; f709  60		`
-	LD	H,B		; f70a  60		`
-	LD	H,B		; f70b  60		`
-	LD	H,B		; f70c  60		`
-	NOP			; f70d  00		.
-	LD	H,B		; f70e  60		`
-	NOP			; f70f  00		.
-	LD	L,H		; f710  6c		l
-	LD	L,H		; f711  6c		l
-	LD	L,H		; f712  6c		l
-	NOP			; f713  00		.
+; --- '!' (char $21) ---
+	DB	60H,60H,60H,60H,60H,0,60H,0		; f708
+; --- '"' (char $22) ---
+	DB	6CH,6CH,6CH,0				; f710
 ;
 	ORG	0F718H
 ;
@@ -1264,7 +1330,16 @@ XF9CF:	LD	A,H		; f9cf  7c		|
 	DB	7FH,7FH,7FH,7FH,7FH,7FH,7FH		; f9f8 .......
 XF9FF:	DB	0					; f9ff .
 
-; --- HUD font ---
+; ==========================================================================
+; HUD FONT ($FA00-$FAFF) — 32 characters x 8 bytes = 256 bytes
+; ==========================================================================
+; Limited charset for score/level/time display. Rendered double-height
+; (8x16) by the HUD rendering routine at $D386.
+; Characters: 0-9, space, %, S, c, o, r, e, L, v, l, i, s, T, m, and
+; a few special symbols (cursor, life icon).
+; Character '0' starts at $FA00.
+; ==========================================================================
+; --- '0' ---
 Xfa00:	DB	'<fffff'				; fa00
 Xfa06:	DB	'<'					; fa06
 	DB	0,18H,38H,18H,18H,18H,18H,7EH		; fa07 ..8....~
@@ -1400,21 +1475,41 @@ Xfaee:	DB	'H'					; faee
 XFAFE:	LD	B,D		; fafe  42		B
 XFAFF:	INC	A		; faff  3c		<
 
-; --- Cell mask table ---
+; ==========================================================================
+; CELL MASK TABLE ($FB00-$FB03, 4 bytes)
+; ==========================================================================
+; Masks for selecting a 2-bit cell within a byte.
+; Index = X & 3: cell 0=$C0 (bits 7-6), cell 1=$30 (bits 5-4),
+; cell 2=$0C (bits 3-2), cell 3=$03 (bits 1-0).
+; ==========================================================================
 CELL_MASK_TABLE:
-	RET	NZ		; fb00  c0		@
-	JR	NC,XFB0F	; fb01  30 0c		0.
-	INC	BC		; fb03  03		.
+	DB	0C0H,30H,0CH,03H			; fb00  Cell masks
 ;
 	ORG	0FB08H
 ;
-	DB	80H,40H,20H,10H,8,4,2			; fb08 .@ ....
+; ==========================================================================
+; BIT MASK TABLE ($FB08-$FB0E, 7 bytes)
+; ==========================================================================
+; Single-bit masks for pixel-level operations.
+; Index 0=$80, 1=$40, 2=$20, 3=$10, 4=$08, 5=$04, 6=$02.
+; ==========================================================================
+	DB	80H,40H,20H,10H,8,4,2			; fb08  Bit masks
 ;
-XFB0F:	LD	BC,X0000	; fb0f  01 00 00	...
+XFB0F:	DB	1,0,0		; fb0f  (padding / referenced address)
 ;
+; ==========================================================================
+; ROW POINTER TABLE ($FC00-$FD7F) — Pre-computed screen addresses
+; ==========================================================================
+; 192 entries x 2 bytes = 384 bytes. Maps pixel row (0-191) to the
+; corresponding ZX Spectrum screen bitmap address. Handles the
+; non-linear layout: 3 thirds x 8 character rows x 8 pixel lines,
+; where rows are interleaved within each third.
+; Entry format: low byte, high byte (little-endian address).
+; ROW_PTR_TABLE EQU $FC00 (defined in equates section).
+; ==========================================================================
 	ORG	0FC01H
 ;
-	DB	40H					; fc01 @
+	DB	40H					; fc01  (row 0 high byte — $40xx)
 ;
 	NOP			; fc02  00		.
 	LD	B,C		; fc03  41		A
@@ -1561,10 +1656,26 @@ XFCFF:	LD	C,A		; fcff  4f		O
 	DB	0E0H,50H,0E0H,51H,0E0H,52H,0E0H,53H	; fd70 `P`Q`R`S
 	DB	0E0H,54H,0E0H,55H,0E0H,56H,0E0H,57H	; fd78 `T`U`V`W
 ;
+; ==========================================================================
+; IM2 INTERRUPT SERVICE ROUTINE ENTRY ($FDFD)
+; ==========================================================================
+; The Z80 IM2 vector table at $FE00 contains $FD in every byte.
+; When an interrupt fires, the CPU reads the vector table to form
+; address $FDFD, which jumps here. This single JP instruction
+; redirects to the actual ISR at $BB51.
+; ==========================================================================
 	ORG	0FDFDH
 ;
-XFDFD:	JP	XBB51		; fdfd  c3 51 bb	CQ;
+XFDFD:	JP	XBB51		; fdfd  c3 51 bb	Jump to ISR handler
 ;
+; ==========================================================================
+; IM2 VECTOR TABLE ($FE00-$FEFF) — 256 bytes, all $FD
+; ==========================================================================
+; Every byte is $FD. When the Z80 reads the interrupt vector, it
+; takes the I register (=$FE) as high byte and the data bus value
+; as low byte to form an address. Since all entries are $FD, any
+; bus value produces address $FDFD (the JP above).
+; ==========================================================================
 	DB	0FDH,0FDH	; fe00  fd fd		}}
 ;
 	DB	0FDH,0FDH	; fe02  fd fd		}}
@@ -1821,7 +1932,15 @@ XFEFA:	DB	0FDH,0FDH	; fefa  fd fd		}}
 ;
 XFEFE:	DB	0FDH,0FDH	; fefe  fd fd		}}
 ;
-	DB	0FDH,0		; ff00  fd 00		}.
+; ==========================================================================
+; SPARK SPRITES & LOOKUP DATA ($FF00-$FFFF)
+; ==========================================================================
+; Additional sprite patterns and lookup tables used by the spark
+; rendering system. Includes pre-shifted bitmaps for spark particles
+; at various pixel alignments. The last few bytes ($FFF1-$FFFE)
+; contain small miscellaneous data patterns.
+; ==========================================================================
+	DB	0FDH,0		; ff00  fd 00  (first byte overlaps vector table)
 ;
 	ORG	0FF0CH
 ;
@@ -1997,11 +2116,16 @@ XFFFA:	LD	B,D		; fffa  42		B
 XFFFD:	LD	B,D		; fffd  42		B
 XFFFE:	INC	A		; fffe  3c		<
 ;
-;	Miscellaneous equates
-;
-;  These are addresses referenced in the code but
-;  which are in the middle of a multibyte instruction
-;  or are addresses outside the initialized space
+; ==========================================================================
+; MISCELLANEOUS EQUATES
+; ==========================================================================
+; Addresses referenced in the code that are either:
+;   - In the middle of a multibyte instruction (disassembler artifacts)
+;   - Outside the initialized address space (ROM, I/O ports, etc.)
+;   - Numeric constants used as immediate values
+; These EQU definitions allow the disassembler to resolve all symbolic
+; references without errors.
+; ==========================================================================
 ;
 X0000	EQU	0
 X0003	EQU	3
